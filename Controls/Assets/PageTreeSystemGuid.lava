@@ -1,0 +1,26 @@
+﻿public static class Page
+{
+    {%- assign sortedPages = Pages | Sort:'InternalName' -%}
+    {%- for page in sortedPages -%}
+    /// <summary>
+    /// Page {% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName }}{% if forloop.last == false %} > {% endif %}{% endfor %}
+    /// </summary>
+    public const string {{ page.InternalName | Upcase | Replace:' ','_' }} = "{{ page.Guid }}";
+
+    {%- endfor -%}
+}
+
+public static class Block
+{
+    {%- assign sortedPages = Pages | Sort:'InternalName' -%}
+    {%- for page in sortedPages -%}
+    {%- assign sortedBlocks = page.Blocks | Sort:'Name' -%}
+    {%- for block in sortedBlocks -%}
+    /// <summary>
+    /// Block for Page {{ page.InternalName }}: {{ block.Name }}
+    /// </summary>
+    public const string {{ page.InternalName | Upcase | Replace:' ','_' }}__{{ block.Name | Upcase | Replace:' ','_' }} = "{{ block.Guid }}";
+
+    {%- endfor -%}
+    {%- endfor -%}
+}

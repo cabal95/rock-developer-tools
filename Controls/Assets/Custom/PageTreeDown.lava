@@ -1,0 +1,12 @@
+﻿public override void Down()
+{
+    {%- assign reversePages = Pages | Reverse -%}
+    {%- for page in reversePages -%}
+    {%- assign reverseBlocks = page.Blocks | Reverse -%}
+    {%- for block in reverseBlocks -%}
+    RockMigrationHelper.DeleteBlock( SystemGuid.Block.{% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName | Replace:' ','' }}{% if forloop.last == false %}.{% endif %}{% endfor %}.{{ block.Name | Upcase | Replace:' ','_' }});
+	{%- endfor -%}
+    RockMigrationHelper.DeletePage( SystemGuid.Page.{% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName | Replace:' ','' }}{% if forloop.last == false %}.{% endif %}{% endfor %}.GUID );
+
+    {%- endfor -%}
+}

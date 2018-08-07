@@ -1,0 +1,42 @@
+﻿{%- assign sortedEntityTypes = EntityTypes | Sort:'Name' -%}
+{%- assign reversedEntityTypes = EntityTypes | Sort:'Name','desc' -%}
+public override void Up()
+{
+    #region Entity Types
+{%- for entitytype in sortedEntityTypes -%}
+
+    // EntityType: {{ entitytype.FriendlyName }}
+    RockMigrationHelper.UpdateEntityType( "{{ entitytype.Name }}",
+        SystemGuid.EntityType.{{ entitytype.FriendlyName | Upcase | Replace:' ','_' }}, {{ entitytype.IsEntity }}, {{ entitytype.IsSecured }} );
+{%- endfor -%}
+
+    #endregion
+}
+
+public override void Down()
+{
+    /* NOTE: It is probably safer to not include these lines as they
+     * will fail if something (say an custom attribute) is still
+     * referencing them.
+     */
+    #region Entity Types
+
+{%- for entitytype in reversedEntityTypes -%}
+    RockMigrationHelper.DeleteEntityType( SystemGuid.EntityType.{{ entitytype.FriendlyName | Upcase | Replace:' ','_' }} );
+{%- endfor -%}
+
+    #endregion
+}
+
+
+
+public static class EntityType
+{
+{%- for entitytype in sortedEntityTypes -%}
+    /// <summary>
+    /// Entity Type {{ entitytype.FriendlyName }}
+    /// </summary>
+    public const string {{ entitytype.FriendlyName | Upcase | Replace:' ','_' }} = "{{ entitytype.Guid }}";
+
+{%- endfor -%}
+}

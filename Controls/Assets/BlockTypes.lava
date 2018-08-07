@@ -1,0 +1,75 @@
+﻿{%- assign sortedBlockTypes = BlockTypes | Sort:'Name' -%}
+{%- assign reversedBlockTypes = BlockTypes | Sort:'Name','desc' -%}
+public override void Up()
+{
+{%- for blocktype in sortedBlockTypes -%}
+    #region Block Type {{ blocktype.Name }}
+
+    // BlockType: {{ blocktype.Name }}
+    RockMigrationHelper.AddBlockType( "{{ blocktype.Name }}",
+        "{{ blocktype.Description }}",
+        "{{ blocktype.Path }}",
+        "{{ blocktype.Category }}",
+        SystemGuid.BlockType.{{ blocktype.Name | Upcase | Replace:' ','_' }} );
+    {%- assign attributes = blocktype | BlockTypeAttributes | Sort:'Name' -%}
+    {%- for attribute in attributes -%}
+
+    // Attribute for BlockType {{ blocktype.Name }}: {{ attribute.Name }}
+    RockMigrationHelper.AddBlockTypeAttribute( SystemGuid.BlockType.{{ blocktype.Name | Upcase | Replace:' ','_' }},
+        Rock.SystemGuid.FieldType.{{ attribute.FieldType.Name | Upcase | Replace:' ','_' }},
+        "{{ attribute.Name }}",
+        "{{ attribute.Key }}",
+        "",
+        "{{ attribute.Description }}",
+        {{ attribute.Order }},
+        "{{ attribute.DefaultValue }}",
+        SystemGuid.Attribute.{{ blocktype.Name | Upcase | Replace:' ','_' }}__{{ attribute.Name | Upcase | Replace:' ','_' }},
+        {{ attribute.IsRequired }} );
+    {%- endfor -%}
+
+    #endregion
+
+{%- endfor -%}
+}
+
+public override void Down()
+{
+{%- for blocktype in reversedBlockTypes -%}
+    RockMigrationHelper.DeleteBlockType( SystemGuid.BlockType.{{ blocktype.Name | Upcase | Replace:' ','_' }} );
+{%- endfor -%}
+}
+
+
+
+public static class BlockType
+{
+{%- for blocktype in sortedBlockTypes -%}
+    /// <summary>
+    /// Block Type {{ blocktype.Name }}
+    /// </summary>
+    public const string {{ blocktype.Name | Upcase | Replace:' ','_' }} = "{{ blocktype.Guid }}";
+
+{%- endfor -%}
+}
+
+
+
+public static class Attribute
+{
+{%- for blocktype in sortedBlockTypes -%}
+    {%- assign attributes = blocktype | BlockTypeAttributes | Sort:'Name' -%}
+    {%- if attributes != empty -%}
+    #region Block Type {{ blocktype.Name }}
+
+    {%- for attribute in attributes -%}
+    /// <summary>
+    /// Attribute {{ attribute.Name }} for Block Type {{ blocktype.Name }}
+    /// </summary>
+    public const string {{ blocktype.Name | Upcase | Replace:' ','_' }}__{{ attribute.Name | Upcase | Replace:' ','_' }} = "{{ attribute.Guid }}";
+
+	{%- endfor -%}
+    #endregion
+
+    {%- endif -%}
+{%- endfor -%}
+}

@@ -1,0 +1,16 @@
+﻿{{ '    ' | Times:depth }}public static class {{ page.InternalName | Replace:' ','' }}
+{{ '    ' | Times:depth }}{
+{{ '    ' | Times:depth }}    public const string GUID = "{{ page.Guid }}";
+{%- if page.Pages != empty -%}
+
+    {%- assign depth = depth | Plus:1 -%}
+    {%- assign pages = page.Pages | Sort:'InternalName' -%}
+    {%- for page in pages -%}
+        {%- include '~/Plugins/com_blueboxmoon/DeveloperTools/Assets/PageTreePageSystemGuid.lava' -%}
+    {%- endfor -%}
+    {%- assign depth = depth | Minus:1 -%}
+{%- endif -%}
+{{ '    ' | Times:depth }}}
+{%- if forloop.last == false -%}
+
+{%- endif -%}

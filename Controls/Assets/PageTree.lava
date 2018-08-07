@@ -1,0 +1,21 @@
+﻿{% include '~/Plugins/com_blueboxmoon/DeveloperTools/Assets/Standard/PageTreeUp.lava' %}
+
+{% include '~/Plugins/com_blueboxmoon/DeveloperTools/Assets/Standard/PageTreeDown.lava' %}
+
+
+public static class BlockType
+{
+{%- for page in Pages -%}
+    {%- for block in page.Blocks -%}
+        {%- if block.BlockType.Path contains 'Plugins' -%}{%- else -%}
+    /// <summary>
+    /// Core Block Type {{ blocktype.Name }}
+    /// </summary>
+    public const string {{ block.BlockType.Name | Upcase | Replace:' ','_' }} = "{{ block.BlockType.Guid }}";
+
+        {%- endif -%}
+    {%- endfor -%}
+{%- endfor -%}
+}
+
+{% include '~/Plugins/com_blueboxmoon/DeveloperTools/Assets/Standard/PageTreeSystemGuid.lava' %}

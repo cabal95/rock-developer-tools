@@ -1,0 +1,22 @@
+﻿{{ '    ' | Times:depth }}public static class {{ page.InternalName | Replace:' ','' }}
+{{ '    ' | Times:depth }}{
+{%- assign blocks = page.Blocks | Sort:'Name' -%}
+{%- for block in blocks -%}
+{{ '    ' | Times:depth }}    public const string {{ block.Name | Upcase | Replace:' ','_' }} = "{{ block.Guid }}";
+    {%- if forloop.last == false -%}
+
+    {%- endif -%}
+{%- endfor -%}
+{%- if page.Pages != empty -%}
+
+    {%- assign depth = depth | Plus:1 -%}
+    {%- assign pages = page.Pages | Sort:'InternalName' -%}
+    {%- for page in pages -%}
+        {%- include '~/Plugins/com_blueboxmoon/DeveloperTools/Assets/PageTreeBlockSystemGuid.lava' -%}
+    {%- endfor -%}
+    {%- assign depth = depth | Minus:1 -%}
+{%- endif -%}
+{{ '    ' | Times:depth }}}
+{%- if forloop.last == false -%}
+
+{%- endif -%}

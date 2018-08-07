@@ -1,0 +1,41 @@
+﻿public override void Up()
+{
+    {%- for page in Pages -%}
+    #region Page {% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName }}{% if forloop.last == false %} > {% endif %}{% endfor %}
+
+    // Page: {{ page.InternalName }}
+    RockMigrationHelper.AddPage( {% if RootPage.Guid == page.Guid %}"{{ page.ParentPage.Guid }}"{% else %}SystemGuid.Page.{% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName | Replace:' ','' }}{% if forloop.last == false %}.{% endif %}{% endfor %}.GUID{% endif %},
+        "{{ page.Layout.Guid }}",
+        "{{ page.InternalName }}",
+        "{{ page.Description }}",
+        SystemGuid.Page.{% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName | Replace:' ','' }}{% if forloop.last == false %}.{% endif %}{% endfor %}.GUID,
+        "{{ page.IconCssClass }}" );
+    {%- for block in page.Blocks -%}
+
+    // Block for Page {{ page.InternalName }}: {{ block.Name }}
+    RockMigrationHelper.AddBlock( SystemGuid.Page.{% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName | Replace:' ','' }}{% if forloop.last == false %}.{% endif %}{% endfor %}.GUID,
+        "",
+        SystemGuid.BlockType.{{ block.BlockType.Name | Upcase | Replace:' ','_' }},
+        "{{ block.Name }}",
+        "{{ block.Zone }}",
+        @"{{ block.PreHtml | Replace:'"','""' }}",
+        @"{{ block.PostHtml | Replace:'"','""' }}",
+        {{ block.Order }},
+        SystemGuid.Block.{% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName | Replace:' ','' }}{% if forloop.last == false %}.{% endif %}{% endfor %}.{{ block.Name | Upcase | Replace:' ','_' }} );
+        {%- assign attributeValues = block | BlockAttributes -%}
+        {%- for value in attributeValues -%}
+            {%- assign attribute = value | Property:'Attribute' -%}
+            {%- if value.Value != attribute.DefaultValue -%}
+
+    // Attribute Value for Block {{ block.Name }}: {{ attribute.Name }}
+    RockMigrationHelper.AddBlockAttributeValue( SystemGuid.Block.{% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName | Replace:' ','' }}{% if forloop.last == false %}.{% endif %}{% endfor %}.{{ block.Name | Upcase | Replace:' ','_' }},
+        {% if block.BlockType.Path contains 'Plugins' -%}SystemGuid.Attribute.{{ block.BlockType.Name | Upcase | Replace:' ','_' }}__{{ attribute.Name | Upcase | Replace:' ','_' }}{%- else -%}"{{ attribute.Guid }}"{%- endif -%},
+        "{{ value.Value }}" );
+            {%- endif -%}
+        {%- endfor -%}
+	{%- endfor -%}
+
+    #endregion
+
+    {%- endfor -%}
+}

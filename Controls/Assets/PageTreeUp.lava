@@ -1,0 +1,30 @@
+﻿public override void Up()
+{
+    {%- for page in Pages -%}
+    #region Page {% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName }}{% if forloop.last == false %} > {% endif %}{% endfor %}
+
+    // Page: {{ page.InternalName }}
+    RockMigrationHelper.AddPage( {% if RootPage.Guid == page.Guid %}"{{ page.ParentPage.Guid }}"{% else %}SystemGuid.Page.{{ page.InternalName | Upcase | Replace:' ','_' }}{% endif %},
+        "{{ page.Layout.Guid }}",
+        "{{ page.InternalName }}",
+        "{{ page.Description }}",
+        SystemGuid.Page.{{ page.InternalName | Upcase | Replace:' ','_' }},
+        "{{ page.IconCssClass }}" );
+    {%- for block in page.Blocks -%}
+
+    // Block for Page {{ page.InternalName }}: {{ block.Name }}
+    RockMigrationHelper.AddBlock( SystemGuid.Page.{{ page.InternalName | Upcase | Replace:' ','_' }},
+        "",
+        SystemGuid.BlockType.{{ block.BlockType.Name | Upcase | Replace:' ','_' }},
+        "{{ block.Name }}",
+        "{{ block.Zone }}",
+        @"{{ block.PreHtml | Replace:'"','""' }}",
+        @"{{ block.PostHtml | Replace:'"','""' }}",
+        {{ block.Order }},
+        SystemGuid.Block.{{ page.InternalName | Upcase | Replace:' ','_' }}__{{ block.Name | Upcase | Replace:' ','_' }} );
+	{%- endfor -%}
+
+    #endregion
+
+    {%- endfor -%}
+}
