@@ -5,9 +5,9 @@
 
     // Page: {{ page.InternalName }}
     RockMigrationHelper.AddPage( {% if RootPage.Guid == page.Guid %}"{{ page.ParentPage.Guid }}"{% else %}SystemGuid.Page.{{ page.InternalName | Upcase | Replace:' ','_' }}{% endif %},
-        "{{ page.Layout.Guid }}",
+        "{{ page.Layout.Guid }}", // {{ page.Layout.Name }}
         "{{ page.InternalName }}",
-        "{{ page.Description }}",
+        @"{{ page.Description }}",
         SystemGuid.Page.{{ page.InternalName | Upcase | Replace:' ','_' }},
         "{{ page.IconCssClass }}" );
     {%- for block in page.Blocks -%}
@@ -15,13 +15,28 @@
     // Block for Page {{ page.InternalName }}: {{ block.Name }}
     RockMigrationHelper.AddBlock( SystemGuid.Page.{{ page.InternalName | Upcase | Replace:' ','_' }},
         "",
-        SystemGuid.BlockType.{{ block.BlockType.Name | Upcase | Replace:' ','_' }},
+        {% if block.BlockType.Path contains '~/Plugins' -%}
+            {{-}}SystemGuid.BlockType.{{ block.BlockType.Name | Upcase | Replace:' ','_' }},
+		{%- else -%}
+            {{-}}SystemGuid.BlockType.CORE_{{ block.BlockType.Name | Upcase | Replace:' ','_' }},
+		{%- endif -%}
         "{{ block.Name }}",
         "{{ block.Zone }}",
         @"{{ block.PreHtml | Replace:'"','""' }}",
         @"{{ block.PostHtml | Replace:'"','""' }}",
         {{ block.Order }},
         SystemGuid.Block.{{ page.InternalName | Upcase | Replace:' ','_' }}__{{ block.Name | Upcase | Replace:' ','_' }} );
+        {%- assign attributeValues = block | BlockAttributes -%}
+        {%- for value in attributeValues -%}
+            {%- assign attribute = value | Property:'Attribute' -%}
+            {%- if value.Value != attribute.DefaultValue -%}
+
+    // Attribute Value for Block {{ block.Name }}: {{ attribute.Name }}
+    RockMigrationHelper.AddBlockAttributeValue( SystemGuid.Block.{{ page.InternalName | Upcase | Replace:' ','_' }}__{{ block.Name | Upcase | Replace:' ','_' }},
+        {% if block.BlockType.Path contains 'Plugins' -%}SystemGuid.Attribute.{{ block.BlockType.Name | Upcase | Replace:' ','_' }}__{{ attribute.Name | Upcase | Replace:' ','_' }}{%- else -%}"{{ attribute.Guid }}"{%- endif -%},
+        @"{{ value.Value | Replace:'"','""' }}" );
+            {%- endif -%}
+        {%- endfor -%}
 	{%- endfor -%}
 
     #endregion
