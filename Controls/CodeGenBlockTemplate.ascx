@@ -17,6 +17,7 @@
                 <h1 class="panel-title">Block Template Code Gen</h1>
             </div>
             <div class="panel-body">
+                <asp:ValidationSummary ID="vsSummary" runat="server" CssClass="alert alert-danger" />
 
                 <div class="row">
                     <div class="col-md-6">
@@ -31,18 +32,26 @@
                     <div class="col-md-6">
                         <Rock:RockTextBox ID="tbProject" runat="server" Required="true" Label="Project" />
                     </div>
-                </div>
-
-                <Rock:EntityTypePicker ID="etpEntity" runat="server" Required="true" Label="Entity Type" OnSelectedIndexChanged="etpEntity_SelectedIndexChanged" CausesValidation="false" AutoPostBack="true" />
-
-                <div class="row">
                     <div class="col-md-6">
-                        <Rock:RockCheckBoxList ID="cblDisplay" runat="server" Label="Display" Help="Select which properties should be displayed in the grid." Visible="false" />
-                    </div>
-                    <div class="col-md-6">
-                        <Rock:RockCheckBoxList ID="cblFilter" runat="server" Label="Filter" Help="Select which properties should be available as filters in the grid." Visible="false" />
+                        <Rock:RockDropDownList ID="ddlBlockType" runat="server" Required="true" Label="Block Type" OnSelectedIndexChanged="ddlBlockType_SelectedIndexChanged" AutoPostBack="true" CausesValidation="false">
+                            <asp:ListItem />
+                            <asp:ListItem Text="Entity List" />
+                        </Rock:RockDropDownList>
                     </div>
                 </div>
+
+                <asp:Panel ID="pnlEntityListBlock" runat="server" Visible="false">
+                    <Rock:EntityTypePicker ID="etpEntity" runat="server" Required="true" Label="Entity Type" OnSelectedIndexChanged="etpEntity_SelectedIndexChanged" CausesValidation="false" AutoPostBack="true" />
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <Rock:RockCheckBoxList ID="cblDisplay" runat="server" Label="Display" Help="Select which properties should be displayed in the grid." Visible="false" />
+                        </div>
+                        <div class="col-md-6">
+                            <Rock:RockCheckBoxList ID="cblFilter" runat="server" Label="Filter" Help="Select which properties should be available as filters in the grid." Visible="false" />
+                        </div>
+                    </div>
+                </asp:Panel>
 
                 <div class="actions margin-t-md">
                     <asp:LinkButton ID="lbGenerate" runat="server" Text="Generate" CssClass="btn btn-primary" OnClick="lbGenerate_Click" />

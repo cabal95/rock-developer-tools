@@ -20,6 +20,7 @@ using Rock.Model;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
 
+// ScheduleDetail block is a good template for View+Edit details mode.
 namespace RockWeb.Plugins.com_blueboxmoon.DeveloperTools
 {
     [DisplayName( "CodeGen Block Template" )]
@@ -70,32 +71,26 @@ namespace RockWeb.Plugins.com_blueboxmoon.DeveloperTools
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void lbGenerate_Click( object sender, EventArgs e )
         {
+            string lavaTemplate = null;
+
             SetUserPreference( "Organization", tbOrganization.Text );
             SetUserPreference( "Domain", tbDomain.Text );
             SetUserPreference( "Project", tbProject.Text );
 
-            var entityType = new EntityTypeService( new RockContext() ).Get( etpEntity.SelectedEntityTypeId.Value );
-            var displayProperties = cblDisplay.SelectedValues;
-            var filterProperties = cblFilter.SelectedValues;
-
-            var type = Type.GetType( entityType.AssemblyName );
-            var properties = GetTypeProperties( type )
-                .Select( a => new
-                {
-                    a.Name,
-                    Type = GetFriendlyTypeName( a.PropertyType ),
-                    Display = displayProperties.Contains( a.Name ),
-                    Filter = filterProperties.Contains( a.Name )
-                } )
-                .ToList();
-
-            string lavaTemplate = GetAttributeValue( "ListLavaTemplate" );
             var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( RockPage );
             mergeFields.Add( "Organization", tbOrganization.Text.Trim() );
             mergeFields.Add( "Domain", tbDomain.Text.Trim() );
             mergeFields.Add( "Project", tbProject.Text.Trim() );
-            mergeFields.Add( "Class", entityType.Name.Split( '.' ).Last() );
-            mergeFields.Add( "Properties", properties );
+
+            if ( ddlBlockType.SelectedValue == "Entity List" )
+            {
+                lavaTemplate = PrepareEntityListFields( mergeFields );
+            }
+
+            if ( lavaTemplate == null )
+            {
+                return;
+            }
 
             var template = Template.Parse( lavaTemplate );
             RenderParameters parameters = new RenderParameters
@@ -107,13 +102,13 @@ namespace RockWeb.Plugins.com_blueboxmoon.DeveloperTools
             //
             // Convert the results into seperate "file contents" items.
             //
-            var result = template.Render( parameters ).EncodeHtml();
+            var result = template.Render( parameters );
             var files = result.Split( new string[] { "--**--" }, StringSplitOptions.RemoveEmptyEntries )
                 .Where( f => f.Trim().Length != 0 )
                 .Select( s => new
                 {
                     Name = GetFileNameFromSegment( s.Trim() ),
-                    Content = GetFileContentFromSegment( s.Trim() )
+                    Content = GetFileContentFromSegment( s.Trim() ).EncodeHtml()
                 } )
                 .ToList();
 
@@ -159,10 +154,58 @@ namespace RockWeb.Plugins.com_blueboxmoon.DeveloperTools
             cblFilter.Visible = true;
         }
 
+        /// <summary>
+        /// Handles the SelectedIndexChanged event of the ddlBlockType control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void ddlBlockType_SelectedIndexChanged( object sender, EventArgs e )
+        {
+            pnlEntityListBlock.Visible = false;
+
+            if ( ddlBlockType.SelectedValue == "Entity List" )
+            {
+                pnlEntityListBlock.Visible = true;
+            }
+        }
+
         #endregion
 
         #region Methods
 
+        /// <summary>
+        /// Prepares the entity list merge fields.
+        /// </summary>
+        /// <param name="mergeFields">The base merge fields.</param>
+        /// <returns>The lava template to use when merging.</returns>
+        protected string PrepareEntityListFields( Dictionary<string, object> mergeFields )
+        {
+            var entityType = new EntityTypeService( new RockContext() ).Get( etpEntity.SelectedEntityTypeId.Value );
+            var displayProperties = cblDisplay.SelectedValues;
+            var filterProperties = cblFilter.SelectedValues;
+
+            var type = Type.GetType( entityType.AssemblyName );
+            var properties = GetTypeProperties( type )
+                .Select( a => new
+                {
+                    a.Name,
+                    Type = GetFriendlyTypeName( a.PropertyType ),
+                    Display = displayProperties.Contains( a.Name ),
+                    Filter = filterProperties.Contains( a.Name )
+                } )
+                .ToList();
+
+            mergeFields.Add( "Class", entityType.Name.Split( '.' ).Last() );
+            mergeFields.Add( "Properties", properties );
+
+            return GetAttributeValue( "ListLavaTemplate" );
+        }
+
+        /// <summary>
+        /// Gets the file name from code segment.
+        /// </summary>
+        /// <param name="segment">The code segment.</param>
+        /// <returns></returns>
         protected string GetFileNameFromSegment( string segment )
         {
             var regex = new Regex( @"^\[([A-Za-z0-9\._]+)\]" );
@@ -176,6 +219,11 @@ namespace RockWeb.Plugins.com_blueboxmoon.DeveloperTools
             return "Unknown";
         }
 
+        /// <summary>
+        /// Gets the file content from code segment.
+        /// </summary>
+        /// <param name="segment">The code segment.</param>
+        /// <returns></returns>
         protected string GetFileContentFromSegment( string segment )
         {
             var regex = new Regex( @"^\[([A-Za-z0-9\._]+)\]" );
