@@ -1,0 +1,405 @@
+﻿{%- assign hasFilters = false -%}
+{%- assign hasOrder = false -%}
+{%- assign hasName = false -%}
+{%- assign hasDescription = false -%}
+{%- for property in Properties -%}
+    {%- if property.Filter == true -%}{%- assign hasFilters = true -%}{%- endif -%}
+	{%- if property.Name == "Order" -%}{%- assign hasOrder = true -%}{%- endif -%}
+    {%- if property.Name == "Name" -%}{%- assign hasName = true -%}{%- endif -%}
+	{%- if property.Name == "Description" -%}{%- assign hasDescription = true -%}{%- endif -%}
+{%- endfor -%}
+{%- if hasFilters == true -%}
+    {%- assign hasOrder = false -%}
+{%- endif -%}
+
+{{ Class | Append:'List.ascx' | FilenameSection }}
+<%@ Control Language="C#" AutoEventWireup="true" CodeFile="{{ Class }}List.ascx.cs" Inherits="RockWeb.Plugins.{{ Domain | Replace:'.','_' }}.{{ Project | Replace:' ','' }}.{{ Class }}List" %>
+
+<asp:UpdatePanel ID="upnlContent" runat="server">
+    <ContentTemplate>
+        <asp:Panel ID="pnl{{ Class }}List" runat="server" CssClass="panel panel-block">
+            <div class="panel-heading">
+                <h1 class="panel-title"><i class="fa fa-list-ul"></i> {{ Class | Humanize | Capitalize | Pluralize }}</h1>
+            </div>
+
+            <div class="panel-body">
+                <div class="grid grid-panel">
+                    <Rock:ModalAlert ID="mdGridWarning" runat="server" />
+{%- if hasFilters == true -%}
+                    <Rock:GridFilter ID="gf{{ Class }}" runat="server" OnApplyFilterClick="gf{{ Class }}_ApplyFilterClick" OnClearFilterClick="gf{{ Class }}_ClearFilterClick" OnDisplayFilterValue="gf{{ Class }}_DisplayFilterValue">
+    {%- for property in Properties -%}
+        {%- if property.Filter == true -%}
+            {%- if property.Type == 'bool' -%}
+                        <Rock:RockDropDownList ID="ddl{{ property.Name }}Filter" runat="server" Label="{{ property.Name | Humanize | Capitalize | Replace:'Is ','' }}">
+                            <asp:ListItem Text="" Value="" />
+                            <asp:ListItem Text="Yes" Value="Yes" />
+                            <asp:ListItem Text="No" Value="No" />
+                        </Rock:RockDropDownList>
+            {%- elseif property.Type == 'DateTime' or property.Type == 'DateTime?' -%}
+                        <Rock:DateRangePicker ID="drp{{ property.Name }}Filter" runat="server" Label="{{ property.Name | Humanize | Capitalize }}" />
+            {%- else -%}
+                        <Rock:RockTextBox ID="tb{{ property.Name }}Filter" runat="server" Label="{{ property.Name | Humanize | Capitalize }}" />
+            {%- endif -%}
+        {%- endif -%}
+    {%- endfor -%}
+                    </Rock:GridFilter>
+{%- endif -%}
+                    <Rock:Grid ID="g{{ Class }}" runat="server" RowItemText="{{ Class | Humanize | Capitalize }}" AllowSorting="{% if hasOrder == false %}true{% else %}false{% endif %}" {% if hasDescription == true %}TooltipField="Description" {% endif %}OnRowSelected="g{{ Class }}_RowSelected" OnGridRebind="g{{ Class }}_GridRebind">
+                        <Columns>
+{%- if hasOrder == true -%}
+                            <Rock:ReorderField />
+{%- endif -%}
+{%- for property in Properties -%}
+    {%- if property.Display == true -%}
+        {%- if property.Type == 'bool' -%}
+                            <Rock:BoolField DataField="{{ property.Name }}" HeaderText="{{ property.Name | Humanize | Capitalize | Replace:'Is ','' }}" SortExpression="{{ property.Name }}" />
+        {%- elseif property.Type == 'DateTime' or property.Type == 'DateTime?' -%}
+                            <Rock:RockBoundField DataField="{{ property.Name }}" HeaderText="{{ property.Name | Humanize | Capitalize }}" SortExpression="{{ property.Name }}" DateFormatString="{0:d}" />
+        {%- else -%}
+                            <Rock:RockBoundField DataField="{{ property.Name }}" HeaderText="{{ property.Name | Humanize | Capitalize }}" SortExpression="{{ property.Name }}" />
+        {%- endif -%}
+    {%- endif -%}
+{%- endfor -%}
+                            <Rock:DeleteField OnClick="g{{ Class }}_Delete" />
+                        </Columns>
+                    </Rock:Grid>
+                </div>
+            </div>
+        </asp:Panel>
+    </ContentTemplate>
+</asp:UpdatePanel>
+
+{{ Class | Append:'List.ascx.cs' | FilenameSection }}
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data.Entity;
+using System.IO;
+using System.Linq;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+
+using Rock;
+using Rock.Attribute;
+using Rock.Data;
+using Rock.Model;
+using Rock.Security;
+using Rock.Web.Cache;
+using Rock.Web.UI.Controls;
+using Rock.Web.UI;
+
+namespace RockWeb.Plugins.{{ Domain | Replace:'.','_' }}.{{ Project | Replace:' ','' }}
+{
+    /// <summary>
+    /// Displays a list of {{ Class }} items.
+    /// </summary>
+    [DisplayName( "{{ Class | Humanize | Capitalize }} List" )]
+    [Category( "{{ Organization }} > {{ Project }}" )]
+    [Description( "Displays a list of {{ Class }} items." )]
+
+    [LinkedPage( "Detail Page")]
+    public partial class {{ Class }}List : RockBlock, ICustomGridColumns
+    {
+        #region Base Control Methods
+
+        /// <summary>
+        /// Raises the <see cref="E:System.Web.UI.Control.Init" /> event.
+        /// </summary>
+        /// <param name="e">An <see cref="T:System.EventArgs" /> object that contains the event data.</param>
+        protected override void OnInit( EventArgs e )
+        {
+            base.OnInit( e );
+
+            // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
+            this.BlockUpdated += Block_BlockUpdated;
+            this.AddConfigurationUpdateTrigger( upnlContent );
+
+            bool canEdit = IsUserAuthorized( Authorization.EDIT );
+
+            g{{ Class }}.DataKeyNames = new string[] { "Id" };
+            g{{ Class }}.Actions.ShowAdd = canEdit;
+            g{{ Class }}.Actions.AddClick += g{{ Class }}_AddClick;
+            g{{ Class }}.IsDeleteEnabled = canEdit;
+        }
+
+        /// <summary>
+        /// Raises the <see cref="E:System.Web.UI.Control.Load" /> event.
+        /// </summary>
+        /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
+        protected override void OnLoad( EventArgs e )
+        {
+            base.OnLoad( e );
+
+            if ( !Page.IsPostBack )
+            {
+{%- if hasFilters == true -%}
+                BindFilter();
+{%- endif -%}
+                BindGrid();
+            }
+        }
+
+        #endregion
+
+        #region Events
+
+        /// <summary>
+        /// Handles the BlockUpdated event of the control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void Block_BlockUpdated( object sender, EventArgs e )
+        {
+            BindGrid();
+        }
+
+        #endregion
+
+        #region g{{ Class }} Events
+
+        /// <summary>
+        /// Handles the GridRebind event of the g{{ Class }} control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void g{{ Class }}_GridRebind( object sender, EventArgs e )
+        {
+            BindGrid();
+        }
+
+        /// <summary>
+        /// Handles the AddClick event of the g{{ Class }} control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void g{{ Class }}_AddClick( object sender, EventArgs e )
+        {
+            NavigateToLinkedPage( "DetailPage", "{{ Class }}Id", 0 );
+        }
+
+        /// <summary>
+        /// Handles the Row Selected event of the g{{ Class }} control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="RowEventArgs"/> instance containing the event data.</param>
+        protected void g{{ Class }}_RowSelected( object sender, RowEventArgs e )
+        {
+            NavigateToLinkedPage( "DetailPage", "{{ Class }}Id", e.RowKeyId );
+        }
+
+        /// <summary>
+        /// Handles the Delete event of the g{{ Class }} control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="RowEventArgs"/> instance containing the event data.</param>
+        protected void g{{ Class }}_Delete( object sender, RowEventArgs e )
+        {
+            var rockContext = new RockContext();
+            var {{ Class | ToCamel }}Service = new {{ Class }}Service( rockContext );
+
+            var {{ Class | ToCamel }} = {{ Class | ToCamel }}Service.Get( e.RowKeyId );
+            if ( {{ Class | ToCamel }} != null )
+            {
+                string errorMessage;
+
+                if ( !{{ Class | ToCamel }}Service.CanDelete( {{ Class | ToCamel }}, out errorMessage ) )
+                {
+                    mdGridWarning.Show( errorMessage, ModalAlertType.Information );
+                    return;
+                }
+
+                {{ Class | ToCamel }}Service.Delete( {{ Class | ToCamel }} );
+                rockContext.SaveChanges();
+            }
+
+            BindGrid();
+        }
+{%- if hasOrder == true -%}
+        /// <summary>
+        /// Handles the GridReorder event of the g{{ Class }} control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="GridReorderEventArgs"/> instance containing the event data.</param>
+        protected void g{{ Class }}_GridReorder( object sender, GridReorderEventArgs e )
+        {
+            RockContext rockContext = new RockContext();
+            
+            var qry = GetQuery( rockContext );
+
+            new {{ Class }}Service( rockContext ).Reorder( qry.ToList(), e.OldIndex, e.NewIndex );
+            rockContext.SaveChanges();
+
+            NavigateToCurrentPageReference();
+        }
+
+{%- endif -%}
+
+        #endregion
+
+{%- if hasFilters == true -%}
+        #region gf{{ Class }} Events
+
+        /// <summary>
+        /// Handles the filter display for the gf{{ Class }} control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="GridFilter.DisplayFilterValueArgs" /> instance containing the event data.</param>
+        protected void gf{{ Class }}_DisplayFilterValue( object sender, GridFilter.DisplayFilterValueArgs e )
+        {
+            switch ( e.Key )
+            {
+    {%- for property in Properties -%}
+        {%- if property.Filter == true -%}
+            {%- if property.Type == 'bool' -%}
+                case "{{ property.Name | Humanize | Capitalize | Replace:'Is ','' }}":
+                    e.Value = e.Value;
+                    break;
+
+            {%- else -%}
+                case "{{ property.Name | Humanize | Capitalize }}":
+                    e.Value = e.Value;
+                    break;
+
+            {%- endif -%}
+        {%- endif -%}
+    {%- endfor -%}
+                default:
+                    e.Value = string.Empty;
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Handles the ApplyFilterClick event of the gf{{ Class }} control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
+        protected void gf{{ Class }}_ApplyFilterClick( object sender, EventArgs e )
+        {
+    {%- for property in Properties -%}
+        {%- if property.Filter == true -%}
+            {%- if property.Type == 'bool' -%}
+            gf{{ Class }}.SaveUserPreference( "{{ property.Name | Humanize | Capitalize | Replace:'Is ','' }}", ddl{{ property.Name }}Filter.SelectedValue );
+            {%- elseif property.Type == 'DateTime' or property.Type == 'DateTime?' -%}
+            gf{{ Class }}.SaveUserPreference( "{{ property.Name | Humanize | Capitalize }}", drp{{ property.Name }}Filter.DelimitedValues );
+            {%- else -%}
+            gf{{ Class }}.SaveUserPreference( "{{ property.Name | Humanize | Capitalize }}", tb{{ property.Name }}Filter.Text );
+            {%- endif -%}
+        {%- endif -%}
+    {%- endfor -%}
+
+            BindGrid();
+        }
+
+        /// <summary>
+        /// Handles the ClearFilterClick event of the gf{{ Class }} control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void gf{{ Class }}_ClearFilterClick( object sender, EventArgs e )
+        {
+            gf{{ Class }}.DeleteUserPreferences();
+            BindFilter();
+        }
+
+        #endregion
+
+{%- endif -%}
+        #region Methods
+
+{%- if hasFilters == true -%}
+        /// <summary>
+        /// Binds the filter.
+        /// </summary>
+        protected void BindFilter()
+        {
+    {%- for property in Properties -%}
+        {%- if property.Filter == true -%}
+            {%- if property.Type == 'bool' -%}
+            ddl{{ property.Name }}Filter.SelectedValue = gf{{ Class }}.GetUserPreference( "{{ property.Name | Humanize | Capitalize | Replace:'Is ','' }}" );
+            {%- elseif property.Type == 'DateTime' or property.Type == 'DateTime?' -%}
+            drp{{ property.Name }}Filter.DelimitedValues = gf{{ Class }}.GetUserPreference( "{{ property.Name | Humanize | Capitalize }} ");
+            {%- else -%}
+            tb{{ property.Name }}Filter.Text = gf{{ Class }}.GetUserPreference( "{{ property.Name | Humanize | Capitalize }}" );
+            {%- endif -%}
+        {%- endif -%}
+    {%- endfor -%}
+        }
+
+{%- endif -%}
+        /// <summary>
+        /// Binds the grid.
+        /// </summary>
+        protected void BindGrid()
+        {
+            RockContext rockContext = new RockContext();
+            var qry = GetQuery( rockContext );
+
+            g{{ Class }}.DataSource = qry.ToList();
+            g{{ Class }}.DataBind();
+        }
+
+        /// <summary>
+        /// Gets the {{ Class | Pluralize }}.
+        /// </summary>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        protected IQueryable<{{ Class }}> GetQuery( RockContext rockContext )
+        {
+            var {{ Class | ToCamel }}Service = new {{ Class }}Service( rockContext );
+            var sortProperty = g{{ Class }}.SortProperty;
+            
+            var qry = {{ Class | ToCamel }}Service.Queryable().AsNoTracking();
+
+{%- for property in Properties -%}
+    {%- if property.Filter == true -%}
+            // Filter by {{ property.Name | Humanize | Capitalize }}
+        {%- if property.Type == 'bool' -%}
+            string {{ property.Name | ToCamel }} = gf{{ Class }}.GetUserPreference( "{{ property.Name | Humanize | Capitalize | Replace:'Is ','' }}" );
+            if ( !string.IsNullOrWhiteSpace( {{ property.Name | ToCamel }} ) )
+            {
+                qry = qry.Where( a => a.{{ property.Name }} == ( {{ property.Name | ToCamel }} == "Yes" ) );
+            }
+        {%- elseif property.Type == 'DateTime' or property.Type == 'DateTime?' -%}
+            var drp{{ property.Name }} = new DateRangePicker
+            {
+                DelimitedValues = gf{{ Class }}.GetUserPreference( "{{ property.Name | Humanize | Capitalize }}" )
+            };
+            if ( drp{{ property.Name }}.LowerValue.HasValue )
+            {
+                qry = qry.Where( a => a.{{ property.Name }} >= drp{{ property.Name }}.LowerValue.Value );
+            }
+            if ( drp{{ property.Name }}.UpperValue.HasValue )
+            {
+                DateTime upperDate = drp{{ property.Name }}.UpperValue.Value.Date.AddDays( 1 );
+                qry = qry.Where( a => a.{{ property.Name }} < upperDate );
+            }
+        {%- else -%}
+            string {{ property.Name | ToCamel }} = gf{{ Class }}.GetUserPreference( "{{ property.Name | Humanize | Capitalize }}" );
+            if ( !string.IsNullOrWhiteSpace( {{ property.Name | ToCamel }} ) )
+            {
+                qry = qry.Where( a => a.{{ property.Name }}.Contains( {{ property.Name | ToCamel }} ) );
+            }
+        {%- endif -%}
+
+	{%- endif -%}
+{%- endfor -%}
+{%- if hasOrder == true -%}
+            qry = qry.OrderBy( a => a.Order ){%- if hasName == true -%}.ThenBy( a => a.Name ){%- endif -%}.ThenBy( a => a.Id );
+{%- else -%}
+            if ( sortProperty != null )
+            {
+                qry = qry.Sort( sortProperty );
+            }
+            else
+            {
+                qry = qry.OrderBy( a => a.Order ){%- if hasName == true -%}.ThenBy( a => a.Name ){%- endif -%}.ThenBy( a => a.Id );
+            }
+{%- endif -%}
+
+            return qry;
+        }
+
+        #endregion
+    }
+}
