@@ -1,0 +1,114 @@
+﻿-- ***** INSTALL SCRIPT
+
+
+{%- for page in Pages -%}
+--
+-- Page {% assign tree = page | PageTree:RootPage | Reverse %}{% for t in tree %}{{ t.InternalName }}{% if forloop.last == false %} > {% endif %}{% endfor %}
+--
+DECLARE @Var_{{ page.Guid | Replace:'-','' }}_ParentPageId int = {% if page.ParentPage != null %}(SELECT [Id] FROM [Page] WHERE [Guid] = '{{ page.ParentPage.Guid }}'){% else %}NULL{% endif %}
+DECLARE @Var_{{ page.Guid | Replace:'-','' }}_LayoutId int = {% if page.Layout.Guid != null %}(SELECT [Id] FROM [Layout] WHERE [Guid] = '{{ page.Layout.Guid }}'){% else %}NULL{% endif %}
+DECLARE @Var_{{ page.Guid | Replace:'-','' }}_Order int = (SELECT ISNULL(MAX([order]) + 1, 0) FROM [Page] WHERE [ParentPageId] = @Var_{{ page.Guid | Replace:'-','' }}_ParentPageId)
+INSERT INTO [Page] (
+    [InternalName], [PageTitle], [BrowserTitle],
+    [IsSystem], [ParentPageId],  [LayoutId],
+    [RequiresEncryption], [EnableViewState],
+    [PageDisplayTitle], [PageDisplayBreadCrumb], [PageDisplayIcon], [PageDisplayDescription],
+    [MenuDisplayDescription], [MenuDisplayIcon], [MenuDisplayChildPages],
+    [DisplayInNavWhen],
+    [BreadCrumbDisplayName], [BreadCrumbDisplayIcon],
+    [Order],
+    [OutputCacheDuration],
+    [Description],
+    [IncludeAdminFooter], [IconCssClass], [Guid])
+VALUES (
+    '{{ page.InternalName | Replace:"'","''" }}', '{{ page.PageTitle | Replace:"'","''" }}', '{{ page.BrowserTitle | Replace:"'","''" }}',
+    1, @Var_{{ page.Guid | Replace:'-','' }}_ParentPageId, @Var_{{ page.Guid | Replace:'-','' }}_LayoutId,
+    '{{ page.RequiresEncryption }}', '{{ page.EnableViewState }}',
+    '{{ page.PageDisplayTitle }}', '{{ page.PageDisplayBreadCrumb }}', '{{ page.PageDisplayIcon }}', '{{ page.PageDisplayDescription }}',
+    '{{ page.MenuDisplayDescription }}', '{{ page.MenuDisplayIcon }}', '{{ page.MenuDisplayChildPages }}',
+    0,
+    '{{ page.BreadCrumbDisplayName }}', '{{ page.BreadCrumbDisplayIcon }}',
+    @Var_{{ page.Guid | Replace:'-','' }}_Order,
+    {{ page.OutputCacheDuration }},
+    '{{ page.Description | Replace:"'","''" }}',
+    '{{ page.IncludeAdminFooter }}', '{{ page.IconCssClass }}', '{{ page.Guid }}')
+    {%- for block in page.Blocks -%}
+
+-- Block for Page {{ page.InternalName }}: {{ block.Name }}
+DECLARE @Var_{{ block.Guid | Replace:'-','' }}_PageId int = {% if block.Page != null %}(SELECT [Id] FROM [Page] WHERE [Guid] = '{{ block.Page.Guid }}'){% else %}NULL{% endif %}
+DECLARE @Var_{{ block.Guid | Replace:'-','' }}_LayoutId int = {% if block.Layout != null %}(SELECT [Id] FROM [Layout] WHERE [Guid] = '{{ block.Layout.Guid }}'){% else %}null{% endif %}
+DECLARE @Var_{{ block.Guid | Replace:'-','' }}_BlockTypeId int = (SELECT [Id] FROM [BlockType] WHERE [Guid] = '{{ block.BlockType.Guid }}')
+INSERT INTO [Block] (
+    [IsSystem], [PageId], [LayoutId],
+    [BlockTypeId], [Zone], [Order],
+    [Name],
+    [PreHtml],
+    [PostHtml],
+    [OutputCacheDuration], [Guid])
+VALUES (
+    1, @Var_{{ block.Guid | Replace:'-','' }}_PageId, @Var_{{ block.Guid | Replace:'-','' }}_LayoutId,
+    @Var_{{ block.Guid | Replace:'-','' }}_BlockTypeId, '{{ block.Zone }}', {{ block.Order }},
+    '{{ block.Name | Replace:"'","''" }}',
+    '{{ block.PreHtml | Replace:"'","''" }}',
+    '{{ block.PostHtml | Replace:"'","''" }}',
+    {{ block.OutputCacheDuration }}, '{{ block.Guid }}')
+        {%- if block.Page == null -%}
+DECLARE @Var_{{ block.Guid | Replace:'-','' }}_BlockId = SCOPE_IDENTITY()
+DECLARE @Var_{{ block.Guid | Replace:'-','' }}_EntityTypeId = (SELECT [Id] FROM [EntityType] WHERE [Name] = 'Rock.Model.Block')
+INSERT INTO [Auth] (
+    [EntityTypeId], [EntityId],
+    [Order], [Action], [AllowOrDeny], [SpecialRole], [GroupId], [Guid])
+    VALUES (
+    @Var_{{ block.Guid | Replace:'-','' }}_EntityTypeId,
+    @Var_{{ block.Guid | Replace:'-','' }}_BlockId,
+    0, 'Edit', 'A', 0, 2, NEWID())
+INSERT INTO [Auth] (
+    [EntityTypeId], [EntityId],
+    [Order], [Action], [AllowOrDeny], [SpecialRole], [GroupId], [Guid])
+    VALUES (
+    @Var_{{ block.Guid | Replace:'-','' }}_EntityTypeId,
+    @Var_{{ block.Guid | Replace:'-','' }}_BlockId,
+    0, 'Configure', 'A', 0, 2, NEWID())
+        {%- endif -%}
+        {%- assign attributeValues = block | BlockAttributes -%}
+        {%- for value in attributeValues -%}
+            {%- assign attribute = value | Property:'Attribute' -%}
+            {%- if value.Value != attribute.DefaultValue -%}
+
+-- Attribute Value for Block {{ block.Name }}: {{ attribute.Name }}
+DECLARE @Var_{{ value.Guid | Replace:'-','' }}_BlockId int = (SELECT [Id] FROM [Block] WHERE [Guid] = '{{ block.Guid }}')
+DECLARE @Var_{{ value.Guid | Replace:'-','' }}_AttributeId int = (SELECT [Id] FROM [Attribute] WHERE [Guid] = '{{ attribute.Guid }}')
+IF @BlockId IS NOT NULL AND @AttributeId IS NOT NULL
+BEGIN
+    -- Delete existing attribute value first (might have been created by Rock system)
+    DELETE FROM [AttributeValue]
+    WHERE [AttributeId] = @Var_{{ value.Guid | Replace:'-','' }}_AttributeId
+    AND [EntityId] = @Var_{{ value.Guid | Replace:'-','' }}_BlockId
+
+    INSERT INTO [AttributeValue] (
+        [IsSystem], [AttributeId], [EntityId],
+		[Value],
+        [Guid])
+    VALUES(
+        1, @Var_{{ value.Guid | Replace:'-','' }}_AttributeId, @Var_{{ value.Guid | Replace:'-','' }}_BlockId,
+        '{{ value.Value | Replace:"'","''" }}',
+        NEWID())
+END
+            {%- endif -%}
+        {%- endfor -%}
+	{%- endfor -%}
+
+
+{%- endfor -%}
+
+
+-- ***** UNINSTALL SCRIPT
+{%- assign reversePages = Pages | Reverse -%}
+{%- for page in reversePages -%}
+    {%- assign reverseBlocks = page.Blocks | Reverse -%}
+    {%- for block in reverseBlocks -%}
+DELETE FROM [Block] WHERE [Guid] = '{{ block.Guid }}'
+	{%- endfor -%}
+DELETE FROM [Page] WHERE [Guid] = '{{ page.Guid }}'
+
+{%- endfor -%}

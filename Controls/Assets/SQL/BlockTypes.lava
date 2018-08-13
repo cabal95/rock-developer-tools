@@ -1,0 +1,117 @@
+﻿{%- assign sortedBlockTypes = BlockTypes | Sort:'Name' -%}
+{%- assign reversedBlockTypes = BlockTypes | Sort:'Name','desc' -%}
+-- ***** INSTALL SCRIPT
+
+
+{%- for blocktype in sortedBlockTypes -%}
+--
+-- Block Type {{ blocktype.Name }}
+--
+IF EXISTS (SELECT [Id] FROM [BlockType] WHERE [Path] = '{{ blocktype.Path }}')
+BEGIN
+    UPDATE [BlockType]
+        SET [Name] = '{{ blocktype.Name | Replace:"'","''" }}',
+            [Description] = '{{ blocktype.Description | Replace:"'","''" }}',
+            [Category] = '{{ blocktype.Category | Replace:"'","''" }}',
+            [Guid] = '{{ blocktype.Guid }}',
+            [IsSystem] = 1
+    WHERE [Path] = '{{ blocktype.Path }}'
+END
+ELSE
+BEGIN
+	INSERT INTO [BlockType] ([Path], [Name], [Description], [Guid], [Category], [IsSystem], [IsCommon])
+    VALUES (
+        '{{ blocktype.Path }}',
+        '{{ blocktype.Name | Replace:"'","''" }}',
+        '{{ blocktype.Description | Replace:"'","''" }}',
+        '{{ blocktype.Guid }}',
+        '{{ blocktype.Category | Replace:"'","''" }}',
+        1,
+        0
+        )
+END
+GO
+    {%- assign attributes = blocktype | BlockTypeAttributes | Sort:'Name' -%}
+    {%- for attribute in attributes -%}
+
+-- Attribute for BlockType {{ blocktype.Name }}: {{ attribute.Name }}
+DECLARE @BlockTypeId int
+SET @BlockTypeId = (SELECT [Id] FROM [BlockType] WHERE [Guid] = '{{ blocktype.Guid }}')
+DECLARE @FieldTypeId int
+SET @FieldTypeId = (SELECT [Id] FROM [FieldType] WHERE [Guid] = '{{ attribute.FieldType.Guid }}')
+DECLARE @EntityTypeId int
+SET @EntityTypeId = (SELECT [Id] FROM [EntityType] WHERE [Name] = 'Rock.Model.Block')
+
+IF @BlockTypeId IS NOT NULL AND @FieldTypeId IS NOT NULL AND @EntityTypeId IS NOT NULL
+BEGIN
+    -- Find first and last attribute with this entitytype/key combination
+    DECLARE @FirstAttributeId int
+    DECLARE @LastAttributeId int
+
+    SELECT
+        @FirstAttributeId = MIN([Id]),
+        @LastAttributeId = MAX([Id])
+    FROM [Attribute]
+    WHERE [EntityTypeId] = @EntityTypeId
+    AND [EntityTypeQualifierColumn] = 'BlockTypeId'
+    AND [EntityTypeQualifierValue] = CAST(@BlockTypeId as varchar)
+    AND [Key] = '{{ attribute.Key }}'
+
+    IF @FirstAttributeId IS NOT NULL AND @FirstAttributeId <> @LastAttributeId
+    BEGIN
+        -- We have duplicate attributes, update values for the duplicates to point to first attribute
+        UPDATE V SET [AttributeId] = @FirstAttributeId
+        FROM [Attribute] A
+        INNER JOIN [AttributeValue] V
+            ON V.[AttributeId] = A.[Id]
+        WHERE A.[EntityTypeId] = @EntityTypeId
+        AND A.[EntityTypeQualifierColumn] = 'BlockTypeId'
+        AND A.[EntityTypeQualifierValue] = CAST(@BlockTypeId as varchar)
+        AND A.[Key] = '{{ attribute.Key }}'
+        AND A.[Id] <> @FirstAttributeId
+
+        -- Delete the duplicate attributes
+        DELETE [Attribute]
+        WHERE [EntityTypeId] = @EntityTypeId
+        AND [EntityTypeQualifierColumn] = 'BlockTypeId'
+        AND [EntityTypeQualifierValue] = CAST(@BlockTypeId as varchar)
+        AND [Key] = '{{ attribute.Key }}'
+        AND [Id] <> @FirstAttributeId
+    END
+    IF @FirstAttributeId IS NOT NULL
+    BEGIN
+        -- Update the primary attribute
+        UPDATE [Attribute] SET
+            [IsSystem] = 1,
+            [Name] = '{{ attribute.Name | Replace:"'","''" }}',
+            [Description] = '{{ attribute.Description | Replace:"'","''" }}',
+            [Order] = {{ attribute.Order }},
+            [DefaultValue] = '{{ attribute.DefaultValue | Replace:"'","''" }}',
+            [Guid] = '{{ attribute.Guid }}'
+        WHERE [Id] = @FirstAttributeId
+    END
+    ELSE
+    BEGIN
+        INSERT INTO [Attribute] (
+            [IsSystem],[FieldTypeId],[EntityTypeId],[EntityTypeQualifierColumn],[EntityTypeQualifierValue],
+            [Key],[Name],[Description],
+            [Order],[IsGridColumn],[DefaultValue],[IsMultiValue],[IsRequired],
+            [Guid])
+        VALUES(
+            1, @FieldTypeId, @EntityTypeId, 'BlockTypeId', CAST(@BlockTypeId as varchar),
+            '{{ attribute.Key }}', '{{ attribute.Name | Replace:"'","''" }}', '{{ attribute.Description | Replace:"'","''" }}',
+            {{ attribute.Order }}, 0, '{{ attribute.DefaultValue | Replace:"'","''" }}', 0, 0,
+            '{{ attribute.Guid }}')
+    END
+END
+GO
+    {%- endfor -%}
+
+
+{%- endfor -%}
+-- ***** UNINSTALL SCRIPT
+
+
+{%- for blocktype in reversedBlockTypes -%}
+DELETE FROM [BlockType] WHERE [Guid] = '{{ blocktype.Guid }}'
+{%- endfor -%}
