@@ -24,6 +24,7 @@ Currently there are three blocks for generating code:
 1. Entity Types
 2. Block Types
 3. Page Tree
+4. Block Template (probably needs a better name)
 
 There is also a set of Lava files that generate the output nearly identical to the current SQL
 CodeGen scripts (with the exception of the page tree as I think currently the SQL script only
@@ -56,6 +57,28 @@ calls to create each page and add the blocks.
 3. A `SystemGuid.BlockType` class that contains GUID values for any core block types.
 4. The `SystemGuid.Page` class that contains the GUID values for the pages.
 5. The `SystemGuid.Block` class that contains teh GUID values for the blocks.
+
+### Block Templates
+
+This block doesn't match the previous blocks in terms of output. It's design is to have you pick
+an Entity Type from the database and it then will generate a standard "List" and "Detail" block
+`.ascx` and `.ascx.cs` files.
+
+#### List Block
+
+When generating a list block, it will give you a selection of checkboxes so that you can pick
+which properties appear on the grid columns and which properties appear in the grid filter section.
+
+There is some fine tuning that could still be done, such as automating checks if the entity service
+has a `CanDelete` method before generating one. But even as it is now, it should get you started
+and save you a fair amount of time.
+
+#### Detail Block (not fully written yet)
+
+Similarly, this mode will let you pick which properties are displayed and can be edited by
+the user (for example, you probably don't want to let them edit the `IsSystem` property). You can
+also indicate if this is an "edit only" block (like the File Type Detail block) or if it should
+support a View and then Edit mode (like the Financial Account Detail block).
 
 ### Customizing Output
 
